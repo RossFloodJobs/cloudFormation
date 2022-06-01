@@ -1,0 +1,47 @@
+{
+ "AWSTemplateFormatVersion": "2010-09-09",
+ "Description": "Best Practice SNS Topic",
+ "Parameters": {
+ "SubscriptionEndPoint":{
+  "Type":"String",
+  "Description":" endpoint receives notifications from Amazon SNS topic. endpoint value depends on protocol you specify. This could be a URL or ARN"},
+ "SubscriptionProtocol":{
+  "Type":"String",
+  "Description":" subscription's protocol",
+  "AllowedValues":["http","https","email","email-json","sms","sqs","application","lambda"],
+  "Default":"sqs"
+  }
+ },
+ "Mappings": {},
+ "Conditions": {},
+ "Resources": {
+  "SNSTopic":{
+ "Type" : "AWS::SNS::Topic",
+ "Properties" : {
+ }
+
+ },
+  "SNSSubscription":{
+ "Type" : "AWS::SNS::Subscription",
+ "Properties" : {
+  "Endpoint" : {"Ref":"SubscriptionEndPoint"},
+  "Protocol" : {"Ref":"SubscriptionProtocol"},
+  "TopicArn" : {"Ref":"SNSTopic"}
+ }
+}
+ },
+ "Outputs": {
+  "TopicARN" : {
+   "Description" : "ARN newly created SNS Topic",
+   "Value" : { "Ref" : "SNSTopic" }
+  },
+  "QueueName" : {
+   "Description" : "Name newly created SNS Topic",
+   "Value" : { "Fn::GetAtt" : ["SNSTopic", "TopicName"]}
+  }
+ }
+}
+
+
+
+

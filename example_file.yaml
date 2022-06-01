@@ -1,0 +1,194 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Example project for simple generic EC2s using AWS CloudFormation Templates over multi region"
+
+
+
+Mappings:
+
+ AWSRegionToAMI:
+  us-west-1:
+   CentOS: "ami-0bfa4fefe067b7946"
+  us-east-1:
+   CentOS: "ami-01ca03df4a6012157"
+
+
+ Properties:
+  General:
+   DomainName: "ex.com"
+   KeyName: "key"
+
+  AutoSnapshots:
+   ScheduleName: "Daily"
+   ScheduleCron: "0 0 ? * MON-FRI *"
+
+  VpnCorp:
+   FirewallRules:
+    - Description: "Company Network 1"
+     CidrIp: "10.0.0.0/16"
+     IpProtocol: "-1"
+    - Description: "Company Network 2"
+     CidrIp: "192.168.0.0/16"
+     IpProtocol: "-1"
+   PublicIp: "42.31.47.13"
+   StaticRoutes:
+    - "10.0.0.0/16"
+    - "192.168.0.0/16"
+   StaticRoutesCount: 2
+   VpnSolution: "vgw"
+
+  VpcNonprod:
+   Name: "nonprod"
+   Cidr: "10.31.0.0/26"
+   Az1PublicSubnetCidr: "10.31.0.0/28"
+   Az1PrivateSubnetCidr: "10.31.0.32/28"
+   Az2PublicSubnetCidr: "10.31.0.16/28"
+   Az2PrivateSubnetCidr: "10.31.0.48/28"
+
+  Env_Dev:
+   AuthorInstanceType: "m5a.xlarge"
+   AuthorVolumeOptSize: 500
+   Auto_Snapshot: "Daily"
+   Uptime_Window:
+    - "* 4 ? * MON-FRI *"
+    - "* 20 ? * MON-FRI *"
+   Volume_Encryption: "true"
+   LbHttpsPort: 443
+   PublishInstanceType: "m5a.large"
+   PublishVolumeOptSize: 500
+   PublishDispatcherInstanceType: "t3a.medium"
+
+
+
+Resources:
+
+
+ SslCertificate:
+  Type: AWS::CertificateManager::Certificate
+  Properties:
+   DomainName: !Sub
+    - "*.${Domain}"
+    - { Domain: !FindInMap [ Properties, General, DomainName ] }
+   Tags:
+    - Key: Name
+     Value: !Sub "cert_master"
+   ValidationMethod: "DNS"
+
+
+ AutoSnapshots:
+  Type: AWS::CloudFormation::Stack
+  Properties:
+   TemplateURL: "stacks/feats/snapshots.yaml"
+   Parameters:
+    ScheduleName: !FindInMap [ Properties, AutoSnapshots, ScheduleName ]
+
+    ScheduleCron: !FindInMap [ Properties, AutoSnapshots, ScheduleCron ]
+
+ AutoUptime:
+  Type: AWS::CloudFormation::Stack
+  Properties:
+   TemplateURL: "stacks/feats/uptime.yaml"
+
+
+
+ VpnCorp:
+  Type: AWS::CloudFormation::Stack
+  Properties:
+   TemplateURL: "services/ec2/vpn.yaml"
+   Parameters:
+    TopStack: !Sub "vpn-corp"
+
+    CustomerGatewayPublicIp: !FindInMap [ Properties, VpnCorp, PublicIp ]
+    VpnSolution: !FindInMap [ Properties, VpnCorp, VpnSolution ]
+
+ VpnCorpSecurityGroup:
+  Type: AWS::EC2::SecurityGroup
+  Properties:
+   GroupDescription: !Sub "Rules for inbound and outbound traffic"
+   Vpc_Id: !Ref VpcNonprod
+   SecurityGroupIngress: !FindInMap [ Properties, VpnCorp, FirewallRules ]
+   SecurityGroupEgress: !FindInMap [ Properties, VpnCorp, FirewallRules ]
+   Tags:
+    - Key: Name
+      Value: !Sub "vpn_corp_sg"
+
+
+ VpcNonprod:
+  Type: AWS::CloudFormation::Stack
+  Properties:
+   TemplateURL: "stacks/network/vpc.yaml"
+   Parameters:
+    TopStack: "nonprod"
+
+    VpcCidr: !FindInMap [ Properties, VpcNonprod, VpcCidr ]
+    Az1PublicSubnetCidr: !FindInMap [ Properties, VpcNonprod, Az1PublicSubnetCidr ]
+    Az1PrivateSubnetCidr: !FindInMap [ Properties, VpcNonprod, Az1PrivateSubnetCidr ]
+
+    Az2PublicSubnetCidr: !FindInMap [ Properties, VpcNonprod, Az2PublicSubnetCidr ]
+    Az2PrivateSubnetCidr: !FindInMap [ Properties, VpcNonprod, Az2PrivateSubnetCidr ]
+
+    VpnCustomerGatewayId: !GetAtt VpnCorp.Outputs.CustomerGatewayId
+    VpnStaticRoutes: !Join
+     - ","
+     - !FindInMap [ Properties, VpnCorp, StaticRoutes ]
+    VpnStaticRoutesCount: !FindInMap [ Properties, VpnCorp, StaticRoutesCount ]
+
+
+
+ Env_Dev:
+  Type: AWS::CloudFormation::Stack
+  Properties:
+   TemplateURL: "stacks/appenv/generic/env.yaml"
+   Parameters:
+    TopStack: "dev1"
+
+    Auto_Snapshot: !FindInMap [Properties, Env_Dev, Auto_Snapshot]
+    Uptime_Window: !Join
+     - ","
+     - !FindInMap [ Properties, Env_Dev, Uptime_Window ]
+    Volume_Encryption: !FindInMap [ Properties, Env_Dev, Volume_Encryption ]
+    KeyName: !FindInMap [ Properties, Shared, KeyName ]
+    Vpc_Id: !GetAtt VpcNonprod.Outputs.Vpc
+
+    LbHttpsPort: !FindInMap [ Properties, Env_Dev, LbHttpsPort ]
+    LbSubnetIds: !Join
+     - ","
+     - - !GetAtt VpcNonprod.Outputs.Az1PublicSubnet
+      - !GetAtt VpcNonprod.Outputs.Az2PublicSubnet
+
+    LbAuthorSslCertificateArn: !Ref SslCertificate
+
+    LbPublishSslCertificateArn: !Ref SslCertificate
+
+    HostGroupsCount: 2
+    HostGroupsAvailabilityZones: !Join
+     - ","
+     - - !GetAtt VpcNonprod.Outputs.Az1
+     - - !GetAtt VpcNonprod.Outputs.Az2
+    HostGroupsSubnetIds: !Join
+     - ","
+     - - !GetAtt VpcNonprod.Outputs.Az1PrivateSubnet
+      - !GetAtt VpcNonprod.Outputs.Az2PrivateSubnet
+
+    AuthorImageId: !FindInMap [ AWSRegionToAMI, !Ref "AWS::Region", CentOS ]
+    AuthorInstanceType: !FindInMap [ Properties, Env_Dev, AuthorInstanceType ]
+    AuthorSecurityGroupIds: !Join
+     - ","
+     - - !Ref VpnCorpSecurityGroup
+    AuthorVolumeOptSize: !FindInMap [ Properties, Env_Dev, AuthorVolumeOptSize ]
+
+    PublishImageId: !FindInMap [ AWSRegionToAMI, !Ref "AWS::Region", CentOS ]
+    PublishInstanceType: !FindInMap [ Properties, Env_Dev, PublishInstanceType ]
+    PublishSecurityGroupIds: !Join
+     - ","
+     - - !Ref VpnCorpSecurityGroup
+    PublishVolumeOptSize: !FindInMap [ Properties, Env_Dev, PublishVolumeOptSize ]
+
+    PublishDispatcherImageId: !FindInMap [ AWSRegionToAMI, !Ref "AWS::Region", CentOS ]
+    PublishDispatcherInstanceType: !FindInMap [ Properties, Env_Dev, PublishDispatcherInstanceType ]
+    PublishDispatcherSecurityGroupIds: !Join
+     - ","
+     - - !Ref VpnCorpSecurityGroup
+
+    HostedZoneName: !Sub
+     - "${Domain}."
+     - { Domain: !FindInMap [ Properties, Shared, DomainName ] }

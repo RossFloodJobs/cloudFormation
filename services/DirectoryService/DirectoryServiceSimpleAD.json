@@ -1,0 +1,130 @@
+{
+  "Parameters": {
+    "DomainName": {
+      "Description": "FQDN  domain for this directory",
+      "Type": "String",
+      "Default": "corp.example.com"
+    },
+    "SimpleADShortName": {
+      "Description": "Netbios name  domain for this directory",
+      "Type": "String",
+      "Default": "corp"
+    },
+    "EnableSingleSignOn": {
+      "Description": "Enable SSO",
+      "Type": "String",
+      "AllowedValues": [
+        "true",
+        "false"
+      ],
+      "Default": "false"
+    },
+    "CreateAlias": {
+      "Description": "Only required for applications which need a URL to connect to  directory",
+      "Type": "String",
+      "AllowedValues": [
+        "true",
+        "false"
+      ],
+      "Default": "false"
+    },
+    "SimpleADPW": {
+      "Description": "Domain admin Password",
+      "Type": "String",
+      "NoEcho": true,
+      "Default": "Pass@w0rd"
+    },
+    "PrivateSubnet1": {
+      "Description": "Subnet to be used for  Directoty",
+      "Type": "List<AWS::EC2::Subnet::Id>"
+    },
+    "PrivateSubnet2": {
+      "Description": "Subnet to be used for  Directoty",
+      "Type": "List<AWS::EC2::Subnet::Id>"
+    },
+    "Vpc_Id": {
+      "Description": " VPC  directory created in",
+      "Type": "List<AWS::EC2::VPC::Id>"
+    },
+    "Size": {
+      "Description": "Size  Simple AD",
+      "Type": "String",
+      "AllowedValues": [
+        "Small",
+        "Large"
+      ],
+      "Default": "Small"
+    }
+  },
+  "Resources": {
+    "SimpleAD": {
+      "Type": "AWS::DirectoryService::SimpleAD",
+      "Properties": {
+        "CreateAlias": false,
+        "EnableSso": false,
+        "Name": {
+          "Ref": "DomainName"
+        },
+        "Password": {
+          "Ref": "SimpleADPW"
+        },
+        "ShortName": {
+          "Ref": "SimpleADShortName"
+        },
+        "Size": {
+          "Ref": "Size"
+        },
+        "VpcSettings": {
+          "SubnetIds": [
+            { "Fn::Select" : [ "0",  {"Ref":"PrivateSubnet1"}  ] },
+            { "Fn::Select" : [ "0", {"Ref":"PrivateSubnet2"} ] }
+          ],
+          "Vpc_Id": { "Fn::Select" : [ "0",  {"Ref":"Vpc_Id"}  ] }
+        
+        }
+      }
+    }
+  },
+  "Conditions" : {
+    "Alias" : {"Fn::Equals" : [{"Ref" : "CreateAlias"}, "true"]}
+     
+  },
+  "Outputs": {
+    "DirectoryID": {
+      "Description": "ID  SimpleAD",
+      "Value": {
+        "Ref": "SimpleAD"
+      }
+    },
+     "PrimaryDNS": {
+      "Description": "DNS IPs  SimpleAD",
+      "Value":
+      { "Fn::Select" : [ "0",  {
+        "Fn::GetAtt": [
+          "SimpleAD",
+          "DnsIpAddresses"
+        ]
+      }  ] }},
+      "SecondaryDNS": {
+      "Description": "DNS IPs  SimpleAD",
+      "Value":
+      { "Fn::Select" : [ "1",  {
+        "Fn::GetAtt": [
+          "SimpleAD",
+          "DnsIpAddresses"
+        ]
+      }  ] }
+      
+    },
+    "DirectoryAlias": {
+      "Description": "URL for  alias",
+      "Value": {
+        "Fn::GetAtt": [
+          "SimpleAD",
+          "Alias"
+        ]
+      },
+      "Condition": "Alias"
+    }
+  }
+}

@@ -1,0 +1,104 @@
+Metadata:
+  License: Apache-2.0
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS CloudFormation Sample Template FindInMap_Inside_Sub.yaml
+  This template shows a working example using  new Fn::Sub function with
+   Fn::FindInMap function embedded inside it.
+
+  This creates an EC2 instance with a customized UserData field.
+   instance itself is not  point this example, just  UserData field.
+
+  This template outputs a AWS CLI command for viewing  UserData on Mac/Linux.
+  You can also use  web console by going to  EC2 service, instances, select
+  your instance, click "actions" above  list, Instance Settings, View/Change User Data.
+
+  **WARNING** This template creates an Amazon EC2 instance.
+  You billed for  AWS resources used if you create a stack from this template.'
+Parameters:
+  EnvNameParam:
+    Description: Example 'dev' or 'test' switch, determines which settings are passed to userdata.
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - test
+  AMIidParam:
+    Description: Enter a valid AMI ID for your selected region, suggested to use latest Amazon Linux.
+    Type: AWS::EC2::Image::Id
+    Default: ami-5ec1673e
+  InstanceTypeParam:
+    Description: Enter a valid instance type for your selected region.
+    Type: String
+    Default: 't2.micro'
+Mappings:
+  EnvMap:
+    dev:
+      UserToCreate: devuser
+      WebServer: httpd
+    test:
+      UserToCreate: testuser
+      WebServer: nginx
+Conditions:
+  ExampleConditionIfDev:
+    Fn::Equals:
+      - Ref: EnvNameParam
+      - 'dev'
+Resources:
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: FindInMap-Inside-Sub-Example
+  EC2Instance:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      ImageId:
+        Ref: AMIidParam
+      InstanceType:
+        Ref: InstanceTypeParam
+      SecurityGroupIds:
+        - Ref: InstanceSecurityGroup
+      UserData:
+        Fn::Base64:
+          Fn::Sub:
+            
+            
+            
+            - |
+              
+
+              
+              useradd ${LocalFindInMapVarUsername}
+              yum install ${LocalFindInMapVarWebserver}
+              service ${LocalFindInMapVarWebserver} start
+              chkconfig ${LocalFindInMapVarWebserver} on
+
+              
+              echo "${LocalIfVar}" > /etc/ssh/banner_text
+
+              
+              echo "Security Group ID is ${InstanceSecurityGroup.GroupId}" >> /etc/ssh/banner_text
+
+              
+              echo "Instance type is ${InstanceTypeParam}" >> /etc/ssh/banner_text
+
+              echo "Banner /etc/ssh/banner_text" >> /etc/ssh/sshd_config
+              service sshd restart
+            - {
+              
+              
+              LocalFindInMapVarUsername:    !FindInMap [ EnvMap,                !Ref EnvNameParam,         UserToCreate ],
+              LocalFindInMapVarWebserver:   !FindInMap [ EnvMap,                !Ref EnvNameParam,         WebServer ],
+              LocalIfVar:                   !If        [ ExampleConditionIfDev, 'This box is development', 'This box is testing' ]
+              }
+Outputs:
+  CLIcommand:
+    Description: CLI command to view  user data on Mac/Linux.
+    Value:
+      Fn::Join:
+        - ""
+        - - 'aws ec2 describe-instance-attribute --instance-id '
+          - Ref: EC2Instance
+          - " --attribute userData | awk '{print $2}' | base64 --decode"
+  WebConsoleInstructions:
+    Description: Instructions for using  web console to view userdata.
+    Value: 'Log in to  web console, navigate to  EC2 service section, select instances on  left, select your instance from  list, click "actions" above  list, mouse over Instance Settings, click View/Change User Data.'

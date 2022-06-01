@@ -1,0 +1,14 @@
+MIT No Attribution
+
+Permission is hereby granted, free charge, to any person obtaining a copy this
+software and associated documentation files ( "Software"), to deal in Software
+without restriction, including without limitation rights to use, copy, modify,
+merge, publish, distribute, sublicense, and/or sell copies Software, and to
+permit persons to whom Software is furnished to do so.
+
+ SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO WARRANTIES MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OR LIABILITY, WHER IN AN ACTION
+CONTRACT, TORT OR ORWISE, ARISING FROM, OUT OR IN CONNECTION WITH 
+SOFTWARE OR USE OR OR DEALINGS IN SOFTWARE.
